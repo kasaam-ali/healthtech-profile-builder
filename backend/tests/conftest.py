@@ -1,5 +1,7 @@
 import os
 
+os.environ["ENVIRONMENT"] = "development"
+os.environ["CORS_ORIGINS"] = "http://localhost:3000"
 os.environ["DATABASE_URL"] = "sqlite:///./test.db"
 os.environ["JWT_SECRET"] = "test-jwt-secret"
 os.environ["SESSION_SECRET"] = "test-session-secret"

@@ -9,12 +9,19 @@ from .config import settings
 ALGORITHM = "HS256"
 
 
+def _pw_bytes(password: str) -> bytes:
+    data = password.encode("utf-8")
+    if len(data) > 72:  # defence in depth; schemas already reject with 422
+        raise ValueError("password exceeds bcrypt 72-byte limit")
+    return data
+
+
 def hash_password(password: str) -> str:
-    return bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
+    return bcrypt.hashpw(_pw_bytes(password), bcrypt.gensalt()).decode()
 
 
 def verify_password(password: str, password_hash: str) -> bool:
-    return bcrypt.checkpw(password.encode(), password_hash.encode())
+    return bcrypt.checkpw(_pw_bytes(password), password_hash.encode())
 
 
 def _make_token(user_id: int, kind: str, lifetime: timedelta) -> str:

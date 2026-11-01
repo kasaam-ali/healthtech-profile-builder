@@ -1,5 +1,6 @@
 from app.security import create_refresh_token
 
+ORIGIN = {"Origin": "http://localhost:3000"}
 USER = {"email": "sara.demo@example.com", "full_name": "Sara Demo", "password": "DemoPass123!"}
 
 
@@ -50,7 +51,8 @@ def test_refresh_token_cannot_be_used_as_access(client):
 def test_signup_cannot_make_admin(client):
     body = {**USER, "is_admin": True}
     client.post("/auth/signup", json=body)
-    r = client.post("/admin/login", json={"email": USER["email"], "password": USER["password"]})
+    r = client.post("/admin/login", json={"email": USER["email"], "password": USER["password"]},
+                    headers=ORIGIN)
     assert r.status_code == 401
 
 
@@ -65,8 +67,9 @@ def test_unauthenticated_admin_fails(client):
 
 
 def test_admin_session_flow(client):
-    r = client.post("/admin/login", json={"email": "admin@example.com", "password": "AdminPass123!"})
+    r = client.post("/admin/login", json={"email": "admin@example.com", "password": "AdminPass123!"},
+                    headers=ORIGIN)
     assert r.status_code == 200
     assert client.get("/admin/users").status_code == 200  # session cookie kept by client
-    client.post("/admin/logout")
+    client.post("/admin/logout", headers=ORIGIN)
     assert client.get("/admin/users").status_code == 403
