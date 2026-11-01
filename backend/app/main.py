@@ -12,13 +12,14 @@ from .config import settings
 from .db import get_db
 from .deps import current_admin, current_user, require_trusted_origin
 from .models import AdminSession, User
+from .ml_api import router as ml_router
 from .profiles import router as profiles_router
 from .security import (create_access_token, create_refresh_token, decode_token,
                        hash_password, verify_password)
 
 # Schema is managed by Alembic (backend/alembic). Run `alembic upgrade head` before starting.
 
-app = FastAPI(title="HealthTech Profile Builder - Week 2")
+app = FastAPI(title="HealthTech Profile Builder - Week 3")
 app.add_middleware(SessionMiddleware, secret_key=settings.session_secret,
                    https_only=settings.is_production, same_site="lax",
                    max_age=60 * 60 * settings.admin_session_hours)
@@ -111,3 +112,4 @@ def admin_list_users(_: User = Depends(current_admin), db: Session = Depends(get
 
 
 app.include_router(profiles_router)
+app.include_router(ml_router)

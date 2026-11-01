@@ -1,0 +1,87 @@
+{
+  "model_version": "engagement-v1.0.0",
+  "chosen_estimator": "logistic_regression",
+  "seed": 42,
+  "test_size": 0.25,
+  "trained_at": "2026-11-01T10:19:42+00:00",
+  "sklearn_version": "1.5.2",
+  "eda": {
+    "rows": 2000,
+    "positive_rate": 0.5005,
+    "missing_values": 0,
+    "numeric_summary": {
+      "age": {
+        "count": 2000.0,
+        "mean": 51.49,
+        "std": 19.71,
+        "min": 18.0,
+        "25%": 34.0,
+        "50%": 52.0,
+        "75%": 69.0,
+        "max": 85.0
+      },
+      "sessions_last_30d": {
+        "count": 2000.0,
+        "mean": 5.98,
+        "std": 2.46,
+        "min": 0.0,
+        "25%": 4.0,
+        "50%": 6.0,
+        "75%": 7.0,
+        "max": 18.0
+      },
+      "avg_session_minutes": {
+        "count": 2000.0,
+        "mean": 15.97,
+        "std": 11.35,
+        "min": 1.0,
+        "25%": 7.5,
+        "50%": 13.3,
+        "75%": 21.4,
+        "max": 74.4
+      },
+      "days_since_signup": {
+        "count": 2000.0,
+        "mean": 503.88,
+        "std": 289.88,
+        "min": 1.0,
+        "25%": 250.5,
+        "50%": 506.0,
+        "75%": 751.25,
+        "max": 999.0
+      }
+    }
+  },
+  "results": {
+    "logistic_regression": {
+      "precision": 0.7437,
+      "recall": 0.708,
+      "f1": 0.7254,
+      "confusion_matrix": [
+        [
+          189,
+          61
+        ],
+        [
+          73,
+          177
+        ]
+      ]
+    },
+    "random_forest": {
+      "precision": 0.7489,
+      "recall": 0.668,
+      "f1": 0.7061,
+      "confusion_matrix": [
+        [
+          194,
+          56
+        ],
+        [
+          83,
+          167
+        ]
+      ]
+    }
+  }
+}

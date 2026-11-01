@@ -1,0 +1,29 @@
+{
+  "policy_version": "faq-policy-v1 (fictional, approved for demo)",
+  "entries": [
+    {"id": "privacy-data-use", "title": "How profile data is used",
+     "keywords": ["data", "privacy", "share", "sell", "use", "information", "stored"],
+     "answer": "Profile data in this fictional demo is used only to show your own profile back to you and to let admins search basic, non-sensitive fields. It is never sold or shared with third parties."},
+    {"id": "account-delete", "title": "Deleting profile sections",
+     "keywords": ["delete", "remove", "erase", "account", "section", "clear"],
+     "answer": "You can delete your demographic, wellness preference, and emergency contact sections from the Profile page. Each deletion is recorded in the audit trail without storing the deleted values."},
+    {"id": "emergency-contacts", "title": "Emergency contacts limit",
+     "keywords": ["emergency", "contact", "contacts", "limit", "maximum", "how many"],
+     "answer": "Each member can store up to 5 emergency contacts. Contacts are visible only to you, not to other members."},
+    {"id": "admin-access", "title": "What admins can see",
+     "keywords": ["admin", "administrator", "staff", "see", "view", "access"],
+     "answer": "Admins sign in with a separate session login and can list profiles with search, city filter, and pagination. Admin actions are written to the audit trail."},
+    {"id": "password-reset", "title": "Forgotten password",
+     "keywords": ["password", "forgot", "reset", "login", "sign in", "locked"],
+     "answer": "Password reset is not available in this demo yet. Create a new demo account with a different email if you lose access."},
+    {"id": "prediction-meaning", "title": "What the engagement prediction means",
+     "keywords": ["prediction", "predict", "score", "model", "engagement", "probability", "ml"],
+     "answer": "The engagement prediction estimates, from fictional synthetic data, whether a demo member is likely to use the wellness app in the next 30 days. It is an educational example and says nothing about health."},
+    {"id": "clusters-meaning", "title": "What the clusters mean",
+     "keywords": ["cluster", "clusters", "segment", "group", "kmeans", "k-means"],
+     "answer": "Clusters group synthetic members by app usage patterns (sessions, session length, days since signup). They are descriptive only and are not used to make decisions about anyone."},
+    {"id": "reminders", "title": "Wellness reminders",
+     "keywords": ["reminder", "reminders", "notification", "notifications", "opt", "sms", "email"],
+     "answer": "Wellness reminders are optional. You choose the channel (email, sms, or app) in your wellness preferences and can turn them off at any time."}
+  ]
+}

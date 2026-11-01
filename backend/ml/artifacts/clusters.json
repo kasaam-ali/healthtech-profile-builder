@@ -1,0 +1,42 @@
+{
+  "k": 3,
+  "features": [
+    "sessions_last_30d",
+    "avg_session_minutes",
+    "days_since_signup"
+  ],
+  "silhouette": 0.2823,
+  "plot": "backend/ml/artifacts/pca_clusters.png",
+  "clusters": [
+    {
+      "cluster_id": 0,
+      "size": 807,
+      "means": {
+        "sessions_last_30d": 5.97,
+        "avg_session_minutes": 11.8,
+        "days_since_signup": 239.08
+      },
+      "engaged_rate": 0.559
+    },
+    {
+      "cluster_id": 1,
+      "size": 347,
+      "means": {
+        "sessions_last_30d": 5.92,
+        "avg_session_minutes": 35.31,
+        "days_since_signup": 504.88
+      },
+      "engaged_rate": 0.68
+    },
+    {
+      "cluster_id": 2,
+      "size": 846,
+      "means": {
+        "sessions_last_30d": 6.02,
+        "avg_session_minutes": 12.0,
+        "days_since_signup": 756.06
+      },
+      "engaged_rate": 0.371
+    }
+  ]
+}
