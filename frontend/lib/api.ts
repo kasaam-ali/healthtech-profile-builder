@@ -18,3 +18,24 @@ export async function post<T>(path: string, body: unknown): Promise<T> {
   if (!res.ok) throw new Error(typeof data.detail === "string" ? data.detail : "Request failed");
   return data as T;
 }
+
+// Week 2: authenticated JSON request with the member Bearer token.
+// The server derives ownership from the token; we never send user_id.
+export async function authed<T>(path: string, method = "GET", body?: unknown): Promise<T | null> {
+  const token = tokenStore.get();
+  if (!token) throw new Error("Not logged in.");
+  const res = await fetch(`${API}${path}`, {
+    method,
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+    body: body === undefined ? undefined : JSON.stringify(body),
+  });
+  if (res.status === 404 && method === "GET") return null;
+  if (res.status === 204) return null;
+  const data = await res.json().catch(() => ({}));
+  if (res.status === 401) { tokenStore.clear(); throw new Error("Session expired, please log in again."); }
+  if (!res.ok) {
+    const d = data.detail;
+    throw new Error(typeof d === "string" ? d : Array.isArray(d) ? d.map((e: { msg: string }) => e.msg).join("; ") : "Request failed");
+  }
+  return data as T;
+}
