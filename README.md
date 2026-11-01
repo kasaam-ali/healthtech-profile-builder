@@ -151,3 +151,24 @@ Indexes on every `user_id` FK (unique for 1:1 sections), `demographics.city` (ad
 - [x] User-owned CRUD, IDOR tests, admin-only paginated search, audit trail
 - [x] Schema diagram, API docs (this section + `/docs` OpenAPI)
 - [ ] PR with reviewer `@ahmedhashir10` + Loom
+
+## Week 3: Educational ML and FAQ (synthetic data only)
+
+> Fictional educational demo. Not medical advice, diagnosis, triage, or treatment. Every predict and FAQ response carries this disclaimer.
+
+**Train / recreate artifacts** (from `backend/`, venv active):
+```bash
+pip install -r requirements.txt
+python -m scripts.train_ml
+```
+Writes `ml/data/wellness_engagement.csv`, `ml/artifacts/engagement_model.joblib` (version `engagement-v1.0.0`), `metrics.json`, `clusters.json`, `pca_clusters.png`.
+
+**Endpoints**
+- `POST /api/v1/predict` body: `{"age":34,"sessions_last_30d":8,"avg_session_minutes":15,"days_since_signup":200,"reminders_opt_in":true,"preferred_channel":"app"}`. Out of range, wrong type, unknown fields: 422. Returns prediction, probability, model_version, disclaimer.
+- `GET /api/v1/model`: metrics and comparison.
+- `GET /api/v1/clusters`: K-Means summary and silhouette.
+- `POST /api/v1/faq` body `{"question":"..."}`: answer with sources, or safe abstention.
+
+**Frontend:** `/ml` (comparison, predict form, clusters) and `/faq`.
+
+Docs: `docs/WEEK3_DATASET.md`, `docs/WEEK3_MODEL_COMPARISON.md`, `docs/WEEK3_CLUSTERING.md`, `docs/WEEK3_FAQ_EVAL.md`.
