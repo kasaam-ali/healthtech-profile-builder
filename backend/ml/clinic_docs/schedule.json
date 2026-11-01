@@ -1,0 +1,14 @@
+{
+  "clinic": "Northwind Wellness Clinic (fictional)",
+  "timezone": "clinic local time",
+  "slots": [
+    {"slot_id": "S-2026-11-09-0900", "date": "2026-11-09", "start": "09:00", "coach": "Coach Amber (fictional)", "status": "open"},
+    {"slot_id": "S-2026-11-09-1000", "date": "2026-11-09", "start": "10:00", "coach": "Coach Amber (fictional)", "status": "booked"},
+    {"slot_id": "S-2026-11-09-1400", "date": "2026-11-09", "start": "14:00", "coach": "Coach Bilal (fictional)", "status": "open"},
+    {"slot_id": "S-2026-11-10-0900", "date": "2026-11-10", "start": "09:00", "coach": "Coach Bilal (fictional)", "status": "open"},
+    {"slot_id": "S-2026-11-10-1100", "date": "2026-11-10", "start": "11:00", "coach": "Coach Amber (fictional)", "status": "open"},
+    {"slot_id": "S-2026-11-11-1500", "date": "2026-11-11", "start": "15:00", "coach": "Coach Chen (fictional)", "status": "booked"},
+    {"slot_id": "S-2026-11-12-1000", "date": "2026-11-12", "start": "10:00", "coach": "Coach Chen (fictional)", "status": "open"},
+    {"slot_id": "S-2026-11-13-1600", "date": "2026-11-13", "start": "16:00", "coach": "Coach Bilal (fictional)", "status": "open"}
+  ]
+}

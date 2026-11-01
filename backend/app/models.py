@@ -85,3 +85,16 @@ class AuditEvent(Base):
     resource_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
     metadata_json: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=_now)
+
+
+class AppointmentHold(Base):
+    """Week 4 mock write: a member's temporary hold on a fictional schedule slot.
+    Unique slot_id among rows prevents double holds on the same slot."""
+    __tablename__ = "appointment_holds"
+    __table_args__ = (Index("ix_holds_user_created", "user_id", "created_at"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"))
+    slot_id: Mapped[str] = mapped_column(String(40), unique=True)
+    status: Mapped[str] = mapped_column(String(20), default="held")
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=_now)

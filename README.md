@@ -181,3 +181,17 @@ Writes `ml/data/wellness_engagement.csv`, `ml/artifacts/engagement_model.joblib`
 **Frontend tests:** `cd frontend && npm test` compiles the pages with `tsconfig.test.json` and renders them in jsdom with a mocked `fetch` (JSON 503, plain-text 500, rejected fetch, 422, error-shaped 200, pending, retry) in `tests/pages.test.js`.
 
 Docs: `docs/WEEK3_DATASET.md`, `docs/WEEK3_MODEL_COMPARISON.md`, `docs/WEEK3_CLUSTERING.md`, `docs/WEEK3_FAQ_EVAL.md`.
+
+## Week 4: RAG FAQ, safe tools, CI and deploy
+
+Approved fictional clinic docs live in `backend/ml/clinic_docs/`. `POST /api/v2/faq` retrieves with local TF-IDF, answers only from retrieved text, cites doc id, title and chunk id, and abstains on weak evidence, medical questions and prompt injection. The Week 3 `POST /api/v1/faq` keyword endpoint stays as a legacy alias.
+
+Tools under `/api/v2/tools/`: `search_approved_documents` (read), `check_appointment_availability` (read, fictional schedule), `request_appointment_hold` (mock write, member JWT plus `human_confirmed: true`, atomic, rolls back on provider timeout). All calls are logged to `audit_events` without secrets or question text.
+
+UI: `/assistant` (cited FAQ, availability lookup, confirmation checkbox before any hold).
+
+- Eval (15 questions, two settings): `docs/WEEK4_RAG_EVAL.md`
+- Architecture: `docs/WEEK4_ARCHITECTURE.md`
+- Runbook (local and Docker Compose): `docs/WEEK4_DEPLOY_RUNBOOK.md`
+- CI: `.github/workflows/ci.yml` (ruff, alembic, pytest, eval, frontend lint and build)
+- Tests: `backend/tests/test_week4_rag_tools.py`, including an API-level e2e test: signup, profile, predict, clusters, cited FAQ, availability, confirmed hold.
