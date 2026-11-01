@@ -1,12 +1,12 @@
 """Create or reset the admin account. No public admin signup exists.
 
-Usage (from backend/):  python -m scripts.create_admin
+Usage (from backend/, after `alembic upgrade head`):  python -m scripts.create_admin
 Reads ADMIN_EMAIL / ADMIN_PASSWORD from the environment or .env.
 """
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from sqlalchemy import select
 
-from app.db import Base, SessionLocal, engine
+from app.db import SessionLocal
 from app.models import User
 from app.security import hash_password
 
@@ -19,7 +19,7 @@ class AdminEnv(BaseSettings):
 
 def main():
     env = AdminEnv()
-    Base.metadata.create_all(bind=engine)
+    # Schema comes from Alembic: run `alembic upgrade head` first.
     with SessionLocal() as db:
         user = db.scalar(select(User).where(User.email == env.admin_email))
         if user is None:
