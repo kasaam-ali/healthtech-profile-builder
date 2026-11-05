@@ -7,7 +7,7 @@ data from `python -m scripts.seed_users` (fictional users only).
 
 | Index | Table / columns | Query it serves |
 |---|---|---|
-| `ix_users_email` (unique) | users(email) | login, signup duplicate check, admin search by email |
+| `ix_users_email` (unique) | users(email) | exact-match login and signup duplicate check. Admin search uses `lower(email) LIKE` and does not use it (scan) |
 | `ix_demographics_user_id` (unique) | demographics(user_id) | `GET/PUT /me/demographic` (every profile load); also enforces 1:1 |
 | `ix_wellness_preferences_user_id` (unique) | wellness_preferences(user_id) | `GET/PUT /me/wellness`; enforces 1:1 |
 | `ix_emergency_contacts_user_id` | emergency_contacts(user_id) | `GET /me/emergency-contacts`, ownership-scoped lookups, contact count limit |

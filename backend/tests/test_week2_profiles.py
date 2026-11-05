@@ -96,9 +96,13 @@ def test_malformed_input_422(client):
 
 def test_emergency_contact_limit(client):
     a = member(client, "ayesha.demo@example.com", "Ayesha Demo")
-    for _ in range(5):
-        assert client.post("/me/emergency-contacts", json=CONTACT, headers=a).status_code == 201
-    assert client.post("/me/emergency-contacts", json=CONTACT, headers=a).status_code == 409
+    for i in range(5):
+        r = client.post("/me/emergency-contacts", json={**CONTACT, "phone": f"+92 300 000000{i}"},
+                        headers=a)
+        assert r.status_code == 201
+    r = client.post("/me/emergency-contacts", json={**CONTACT, "phone": "+92 300 0000009"},
+                    headers=a)
+    assert r.status_code == 409
 
 
 def test_admin_search_requires_admin_session_not_jwt(client):
@@ -150,3 +154,132 @@ def test_audit_rows_written_without_secrets(client):
     dump = repr([(e.metadata_json, e.resource_id) for e in events])
     for bad in ("Karachi", "Lahore", "ayesha", "Bearer", PW, "password"):
         assert bad not in dump
+
+
+# ---------- Mentor review fixes (PR #3) ----------
+import threading  # noqa: E402
+
+import pytest  # noqa: E402
+from fastapi.testclient import TestClient  # noqa: E402
+
+from app import audit as audit_mod  # noqa: E402
+from app import profiles as profiles_mod  # noqa: E402
+from app.main import app  # noqa: E402
+from app.models import Demographic, EmergencyContact  # noqa: E402
+
+
+def _contact(i):
+    return {"name": f"Contact {i}", "phone": f"+92 300 000000{i}", "relationship": "friend"}
+
+
+def test_contact_limit_two_connection_race(client, monkeypatch):
+    """From 4 contacts, request A holds its write reservation (paused before commit) while
+    request B starts. B must wait, then see 5 and get the documented 409 with no audit row."""
+    a = member(client, "ayesha.demo@example.com", "Ayesha Demo")
+    for i in range(4):
+        assert client.post("/me/emergency-contacts", json=_contact(i), headers=a).status_code == 201
+
+    a_inside = threading.Event()
+    release_a = threading.Event()
+    real_record = audit_mod.record
+    calls = []
+
+    def paused_record(db, actor, action, rtype, rid=None, meta=None):
+        calls.append(action)
+        if len(calls) == 1:  # first request to reach audit is A (B has not started yet)
+            a_inside.set()  # A has counted 4 and inserted, transaction still open
+            assert release_a.wait(10)
+        return real_record(db, actor, action, rtype, rid, meta)
+
+    monkeypatch.setattr(profiles_mod.audit, "record", paused_record)
+    results = {}
+
+    def go(name, i):
+        c = TestClient(app)  # separate client, separate DB connection per request
+        results[name] = c.post("/me/emergency-contacts", json=_contact(i), headers=a)
+
+    ta = threading.Thread(target=go, args=("A", 5), name="req-A")
+    tb = threading.Thread(target=go, args=("B", 6), name="req-B")
+    ta.start()
+    assert a_inside.wait(10)
+    tb.start()
+    tb.join(0.5)
+    assert tb.is_alive(), "B must block on the write reservation while A holds it"
+    release_a.set()
+    ta.join(10); tb.join(10)
+
+    assert results["A"].status_code == 201
+    assert results["B"].status_code == 409
+    assert results["B"].json()["detail"] == profiles_mod.QUOTA_REJECTION
+    with SessionLocal() as db:
+        rows = db.scalars(select(EmergencyContact)).all()
+        creates = db.scalars(select(AuditEvent).where(
+            AuditEvent.action == "profile.create",
+            AuditEvent.resource_type == "emergency_contact")).all()
+    assert len(rows) == 5
+    assert "+923000000006" not in {r.phone for r in rows}
+    assert len(creates) == 5 and {e.resource_id for e in creates} == {str(r.id) for r in rows}
+
+
+@pytest.mark.parametrize("phone", ["-------", "1------", "(((   )))", "123456",
+                                   "1234567890123456", "92+3000000001", "++923000000001",
+                                   "+92 300 +0000001", "0300-000000a", ""])
+def test_phone_rejected(client, phone):
+    a = member(client, "ayesha.demo@example.com", "Ayesha Demo")
+    r = client.post("/me/emergency-contacts", json={**CONTACT, "phone": phone}, headers=a)
+    assert r.status_code == 422, phone
+
+
+@pytest.mark.parametrize("phone,canonical", [
+    ("+92 300 0000001", "+923000000001"), ("(0300) 000-0001", "03000000001"),
+    ("1234567", "1234567"), ("+123456789012345", "+123456789012345"),
+    ("  030.0000.0001 ", "03000000001")])
+def test_phone_canonical_on_create_and_update(client, phone, canonical):
+    a = member(client, "ayesha.demo@example.com", "Ayesha Demo")
+    r = client.post("/me/emergency-contacts", json={**CONTACT, "phone": phone}, headers=a)
+    assert r.status_code == 201 and r.json()["phone"] == canonical
+    cid = r.json()["id"]
+    r = client.put(f"/me/emergency-contacts/{cid}", json={**CONTACT, "phone": "-------"}, headers=a)
+    assert r.status_code == 422
+    r = client.put(f"/me/emergency-contacts/{cid}", json={**CONTACT, "phone": phone}, headers=a)
+    assert r.status_code == 200 and r.json()["phone"] == canonical
+
+
+@pytest.mark.parametrize("field", ["name", "relationship"])
+def test_whitespace_only_names_rejected(client, field):
+    a = member(client, "ayesha.demo@example.com", "Ayesha Demo")
+    assert client.post("/me/emergency-contacts", json={**CONTACT, field: "   "},
+                       headers=a).status_code == 422
+    r = client.post("/me/emergency-contacts", json={**CONTACT, field: "  Trimmed  "}, headers=a)
+    assert r.status_code == 201 and r.json()[field] == "Trimmed"
+
+
+def test_equivalent_phone_duplicate_policy(client):
+    a = member(client, "ayesha.demo@example.com", "Ayesha Demo")
+    b = member(client, "bilal.demo@example.com", "Bilal Demo")
+    assert client.post("/me/emergency-contacts", json=CONTACT, headers=a).status_code == 201
+    r = client.post("/me/emergency-contacts", json={**CONTACT, "phone": "+92-300-000-0001"},
+                    headers=a)
+    assert r.status_code == 409 and r.json()["detail"] == profiles_mod.DUPLICATE_PHONE
+    # Different users may list the same number.
+    assert client.post("/me/emergency-contacts", json=CONTACT, headers=b).status_code == 201
+    other = client.post("/me/emergency-contacts", json=_contact(9), headers=a).json()
+    r = client.put(f"/me/emergency-contacts/{other['id']}", json=CONTACT, headers=a)
+    assert r.status_code == 409
+
+
+def test_audit_failure_rolls_back_domain_write(client, monkeypatch):
+    a = member(client, "ayesha.demo@example.com", "Ayesha Demo")
+
+    def boom(*args, **kwargs):
+        raise RuntimeError("injected audit insert failure")
+
+    monkeypatch.setattr(profiles_mod.audit, "record", boom)
+    c = TestClient(app, raise_server_exceptions=False)
+    assert c.put("/me/demographic", json=DEMO, headers=a).status_code == 500
+    assert c.post("/me/emergency-contacts", json=CONTACT, headers=a).status_code == 500
+    with SessionLocal() as db:
+        assert db.scalars(select(Demographic)).all() == []
+        assert db.scalars(select(EmergencyContact)).all() == []
+        assert db.scalars(select(AuditEvent).where(
+            AuditEvent.action.like("profile.%"))).all() == []

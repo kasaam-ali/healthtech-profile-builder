@@ -5,6 +5,7 @@ the client never supplies user_id. Admin routes use the server-side admin sessio
 """
 from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from sqlalchemy import func, or_, select
+from sqlalchemy.exc import OperationalError
 from sqlalchemy.orm import Session
 
 from . import audit, schemas
@@ -13,6 +14,9 @@ from .deps import current_admin, current_user
 from .models import Demographic, EmergencyContact, User, WellnessPreference
 
 MAX_EMERGENCY_CONTACTS = 5
+QUOTA_REJECTION = f"At most {MAX_EMERGENCY_CONTACTS} emergency contacts allowed"
+DUPLICATE_PHONE = "This phone number is already saved as one of your emergency contacts"
+BUSY_REJECTION = "Profile is busy, please retry"
 
 router = APIRouter()
 
@@ -119,20 +123,56 @@ def list_contacts(user: User = Depends(current_user), db: Session = Depends(get_
                       .order_by(EmergencyContact.id)).all()
 
 
+def _begin_write_reservation(db: Session) -> None:
+    """Take the SQLite RESERVED write lock before any read used for a quota/duplicate check.
+
+    BEGIN IMMEDIATE makes concurrent writers serialize here: the second writer waits up to the
+    connection busy timeout (db.py, bounded) for the first to commit, then reads the committed
+    count. If the wait is exceeded we return 503 instead of hanging or over-inserting.
+    On a server database (e.g. Postgres) the equivalent is SELECT ... FOR UPDATE on the
+    parent users row, held through the insert and audit commit.
+    """
+    raw = db.connection().connection.dbapi_connection
+    if getattr(raw, "in_transaction", False):
+        # Only SELECTs have run so far in this request (pysqlite does not open a transaction
+        # for them), so this should never trigger; fail closed if it does.
+        raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, BUSY_REJECTION)
+    try:
+        raw.execute("BEGIN IMMEDIATE")
+    except Exception as exc:  # sqlite3.OperationalError: database is locked
+        raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, BUSY_REJECTION) from exc
+
+
+def _phone_taken(db: Session, user: User, phone: str, exclude_id: int | None = None) -> bool:
+    q = select(EmergencyContact.id).where(EmergencyContact.user_id == user.id,
+                                          EmergencyContact.phone == phone)
+    if exclude_id is not None:
+        q = q.where(EmergencyContact.id != exclude_id)
+    return db.scalar(q) is not None
+
+
 @router.post("/me/emergency-contacts", response_model=schemas.EmergencyContactOut,
              status_code=201)
 def create_contact(body: schemas.EmergencyContactIn, user: User = Depends(current_user),
                    db: Session = Depends(get_db)):
-    count = db.scalar(select(func.count()).select_from(EmergencyContact)
-                      .where(EmergencyContact.user_id == user.id))
-    if count >= MAX_EMERGENCY_CONTACTS:
-        raise HTTPException(status.HTTP_409_CONFLICT,
-                            f"At most {MAX_EMERGENCY_CONTACTS} emergency contacts allowed")
-    row = EmergencyContact(user_id=user.id, **body.model_dump())
-    db.add(row)
-    db.flush()
-    audit.record(db, user.id, "profile.create", "emergency_contact", row.id)
-    db.commit()
+    _begin_write_reservation(db)  # lock first, then count, insert, audit, commit
+    try:
+        count = db.scalar(select(func.count()).select_from(EmergencyContact)
+                          .where(EmergencyContact.user_id == user.id))
+        if count >= MAX_EMERGENCY_CONTACTS:
+            db.rollback()
+            raise HTTPException(status.HTTP_409_CONFLICT, QUOTA_REJECTION)
+        if _phone_taken(db, user, body.phone):
+            db.rollback()
+            raise HTTPException(status.HTTP_409_CONFLICT, DUPLICATE_PHONE)
+        row = EmergencyContact(user_id=user.id, **body.model_dump())
+        db.add(row)
+        db.flush()
+        audit.record(db, user.id, "profile.create", "emergency_contact", row.id)
+        db.commit()
+    except OperationalError as exc:
+        db.rollback()
+        raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, BUSY_REJECTION) from exc
     db.refresh(row)
     return row
 
@@ -146,7 +186,11 @@ def get_contact(contact_id: int, user: User = Depends(current_user),
 @router.put("/me/emergency-contacts/{contact_id}", response_model=schemas.EmergencyContactOut)
 def update_contact(contact_id: int, body: schemas.EmergencyContactIn,
                    user: User = Depends(current_user), db: Session = Depends(get_db)):
+    _begin_write_reservation(db)
     row = _own_contact(db, user, contact_id)
+    if _phone_taken(db, user, body.phone, exclude_id=row.id):
+        db.rollback()
+        raise HTTPException(status.HTTP_409_CONFLICT, DUPLICATE_PHONE)
     data = body.model_dump()
     changed = _changed_fields(row, data)
     for k, v in data.items():
