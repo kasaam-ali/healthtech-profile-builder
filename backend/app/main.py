@@ -9,15 +9,16 @@ from starlette.middleware.sessions import SessionMiddleware
 
 from . import schemas
 from .config import settings
-from .db import Base, engine, get_db
+from .db import get_db
 from .deps import current_admin, current_user, require_trusted_origin
 from .models import AdminSession, User
+from .profiles import router as profiles_router
 from .security import (create_access_token, create_refresh_token, decode_token,
                        hash_password, verify_password)
 
-Base.metadata.create_all(bind=engine)
+# Schema is managed by Alembic (backend/alembic). Run `alembic upgrade head` before starting.
 
-app = FastAPI(title="HealthTech Profile Builder - Week 1")
+app = FastAPI(title="HealthTech Profile Builder - Week 2")
 app.add_middleware(SessionMiddleware, secret_key=settings.session_secret,
                    https_only=settings.is_production, same_site="lax",
                    max_age=60 * 60 * settings.admin_session_hours)
@@ -107,3 +108,6 @@ def admin_logout(request: Request, db: Session = Depends(get_db)):
 @app.get("/admin/users", response_model=list[schemas.UserOut])
 def admin_list_users(_: User = Depends(current_admin), db: Session = Depends(get_db)):
     return db.scalars(select(User).order_by(User.id)).all()
+
+
+app.include_router(profiles_router)
