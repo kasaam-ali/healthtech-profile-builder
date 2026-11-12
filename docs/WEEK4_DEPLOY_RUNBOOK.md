@@ -36,7 +36,7 @@ Backend on :8000 (runs `alembic upgrade head` at start, SQLite in a named volume
 
 ```
 cd backend && ruff check --select E9,F app ml scripts tests && python -m pytest -q && python -m scripts.eval_rag
-cd frontend && npm run lint && npm run build
+cd frontend && npm run lint && npm test && npm run build
 ```
 
 ## API quick reference (Week 4)
@@ -52,5 +52,6 @@ cd frontend && npm run lint && npm run build
 ## Troubleshooting
 
 - 503 from /api/v2/*: retrieval or calendar provider failure. Nothing was written; retry.
+- 503 from /api/v1/predict, /api/v1/model, /api/v1/clusters or /api/v1/clusters/plot: a model or report artifact in `backend/ml/artifacts/` is missing or invalid (details in the server log only). Run `python -m scripts.train_ml` or restore the files; the next request recovers without a restart.
 - App refuses to start: production mode needs strong JWT_SECRET and SESSION_SECRET; set ENVIRONMENT=development locally.
 - `alembic check` fails: models and migrations drifted; add a new revision.

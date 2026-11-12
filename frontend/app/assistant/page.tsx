@@ -1,66 +1,79 @@
 "use client";
 import { FormEvent, useState } from "react";
-import { API, authed, tokenStore } from "../../lib/api";
+import { API, tokenStore } from "../../lib/api";
+import { RagAnswer, Slot, askRag, checkAvailability, requestHold } from "../../lib/assistantClient";
 
-type Citation = { doc_id: string; title: string; chunk_id: string; score: number };
-type Answer = { abstained: boolean; reason: string | null; answer: string; citations: Citation[]; disclaimer: string };
-type Slot = { slot_id: string; date: string; start: string; coach: string };
-
-async function postJson<T>(path: string, body: unknown): Promise<T> {
-  const token = tokenStore.get();
-  const headers: Record<string, string> = { "Content-Type": "application/json" };
-  if (token) headers.Authorization = `Bearer ${token}`;
-  const res = await fetch(`${API}${path}`, { method: "POST", headers, body: JSON.stringify(body) });
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(typeof data.detail === "string" ? data.detail : "Request failed");
-  return data as T;
-}
+type Err = { message: string; retryable: boolean } | null;
 
 export default function AssistantPage() {
   const [q, setQ] = useState("");
-  const [a, setA] = useState<Answer | null>(null);
+  const [a, setA] = useState<RagAnswer | null>(null);
+  const [faqErr, setFaqErr] = useState<Err>(null);
+  const [asking, setAsking] = useState(false);
+
   const [date, setDate] = useState("");
   const [slots, setSlots] = useState<Slot[]>([]);
+  const [slotsErr, setSlotsErr] = useState<Err>(null);
+  const [checking, setChecking] = useState(false);
+  const [checked, setChecked] = useState(false);
+
   const [picked, setPicked] = useState("");
   const [confirmed, setConfirmed] = useState(false);
-  const [msg, setMsg] = useState("");
-  const [error, setError] = useState("");
+  const [holdMsg, setHoldMsg] = useState("");
+  const [holdErr, setHoldErr] = useState<Err>(null);
+  const [holding, setHolding] = useState(false);
 
-  async function ask(e: FormEvent) {
-    e.preventDefault(); setError(""); setA(null);
-    try { setA(await postJson<Answer>("/api/v2/faq", { question: q })); }
-    catch (err) { setError((err as Error).message); }
+  async function sendQuestion() {
+    if (asking) return;
+    setFaqErr(null); setA(null); setAsking(true);
+    const r = await askRag(API, q, tokenStore.get());
+    setAsking(false);
+    if (r.ok) setA(r.data);
+    else setFaqErr({ message: r.message, retryable: r.kind !== "validation" });
   }
 
-  async function lookup(e: FormEvent) {
-    e.preventDefault(); setError(""); setMsg(""); setPicked(""); setConfirmed(false);
-    try {
-      const d = await postJson<{ slots: Slot[] }>("/api/v2/tools/check_appointment_availability", date ? { date } : {});
-      setSlots(d.slots);
-      if (d.slots.length === 0) setMsg("No open slots for that filter.");
-    } catch (err) { setError((err as Error).message); }
+  async function sendLookup() {
+    if (checking) return;
+    setSlotsErr(null); setHoldMsg(""); setHoldErr(null); setPicked(""); setConfirmed(false); setChecking(true);
+    const r = await checkAvailability(API, date, tokenStore.get());
+    setChecking(false);
+    if (r.ok) { setSlots(r.data.slots); setChecked(true); }
+    else { setSlots([]); setChecked(false); setSlotsErr({ message: r.message, retryable: r.kind !== "validation" }); }
   }
 
-  async function hold() {
-    setError(""); setMsg("");
-    try {
-      const d = await authed<{ slot_id: string; note: string }>("/api/v2/tools/request_appointment_hold", "POST",
-        { slot_id: picked, human_confirmed: confirmed });
-      setMsg(`Hold requested for ${d?.slot_id}. ${d?.note}`);
+  async function sendHold() {
+    if (holding || !picked || !confirmed) return;
+    setHoldErr(null); setHoldMsg(""); setHolding(true);
+    const r = await requestHold(API, picked, confirmed, tokenStore.get());
+    setHolding(false);
+    if (r.ok) {
+      setHoldMsg(`Hold requested for ${r.data.slot_id}. ${r.data.note}`);
       setSlots(slots.filter((s) => s.slot_id !== picked)); setPicked(""); setConfirmed(false);
-    } catch (err) { setError((err as Error).message); }
+      return;
+    }
+    if (r.status === 401) tokenStore.clear();
+    setHoldErr({ message: r.message, retryable: r.kind !== "validation" });
   }
+
+  const ask = (e: FormEvent) => { e.preventDefault(); void sendQuestion(); };
+  const lookup = (e: FormEvent) => { e.preventDefault(); void sendLookup(); };
 
   return (
     <main>
       <h1>Clinic assistant</h1>
       <p>Answers cite approved fictional clinic documents. Medical questions are not answered.</p>
-      <form onSubmit={ask}>
-        <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="e.g. How long does a hold last?" size={40} />
-        <button type="submit">Ask</button>
+      <form onSubmit={ask} data-testid="faq-form">
+        <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="e.g. How long does a hold last?" size={40} aria-label="Question" />
+        <button type="submit" disabled={asking}>{asking ? "Asking..." : "Ask"}</button>
       </form>
+      {faqErr && (
+        <div role="alert" data-testid="faq-error">
+          <p style={{ color: "crimson" }}>{faqErr.message}</p>
+          {faqErr.retryable && <button type="button" onClick={() => void sendQuestion()} disabled={asking}>Retry question</button>}
+        </div>
+      )}
       {a && (
-        <section>
+        <section data-testid="faq-answer">
           <p>{a.abstained ? "Not answered: " : ""}{a.answer}</p>
           {a.citations.length > 0 && (
             <ul>{a.citations.map((c) => <li key={c.chunk_id}>{c.doc_id}: {c.title} ({c.chunk_id})</li>)}</ul>
@@ -70,10 +83,17 @@ export default function AssistantPage() {
       )}
 
       <h2>Appointment availability</h2>
-      <form onSubmit={lookup}>
-        <input value={date} onChange={(e) => setDate(e.target.value)} placeholder="YYYY-MM-DD (optional)" />
-        <button type="submit">Check</button>
+      <form onSubmit={lookup} data-testid="slots-form">
+        <input value={date} onChange={(e) => setDate(e.target.value)} placeholder="YYYY-MM-DD (optional)" aria-label="Date" />
+        <button type="submit" disabled={checking}>{checking ? "Checking..." : "Check"}</button>
       </form>
+      {slotsErr && (
+        <div role="alert" data-testid="slots-error">
+          <p style={{ color: "crimson" }}>{slotsErr.message}</p>
+          {slotsErr.retryable && <button type="button" onClick={() => void sendLookup()} disabled={checking}>Retry availability</button>}
+        </div>
+      )}
+      {checked && slots.length === 0 && <p>No open slots for that filter.</p>}
       {slots.length > 0 && (
         <fieldset>
           <legend>Open slots (fictional)</legend>
@@ -87,11 +107,18 @@ export default function AssistantPage() {
             <input type="checkbox" checked={confirmed} onChange={(e) => setConfirmed(e.target.checked)} />
             {" "}I confirm I want to request a hold on this slot (login required)
           </label>
-          <button type="button" disabled={!picked || !confirmed} onClick={hold}>Request hold</button>
+          <button type="button" disabled={!picked || !confirmed || holding} onClick={() => void sendHold()}>
+            {holding ? "Requesting..." : "Request hold"}
+          </button>
         </fieldset>
       )}
-      {msg && <p>{msg}</p>}
-      {error && <p role="alert" style={{ color: "crimson" }}>{error}</p>}
+      {holdMsg && <p data-testid="hold-ok">{holdMsg}</p>}
+      {holdErr && (
+        <div role="alert" data-testid="hold-error">
+          <p style={{ color: "crimson" }}>{holdErr.message}</p>
+          {holdErr.retryable && <button type="button" onClick={() => void sendHold()} disabled={holding}>Retry hold</button>}
+        </div>
+      )}
     </main>
   );
 }
