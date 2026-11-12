@@ -151,3 +151,33 @@ Indexes on every `user_id` FK (unique for 1:1 sections), `demographics.city` (ad
 - [x] User-owned CRUD, IDOR tests, admin-only paginated search, audit trail
 - [x] Schema diagram, API docs (this section + `/docs` OpenAPI)
 - [ ] PR with reviewer `@ahmedhashir10` + Loom
+
+## Week 3: Educational ML and FAQ (synthetic data only)
+
+> Fictional educational demo. Not medical advice, diagnosis, triage, or treatment. Every predict and FAQ response carries this disclaimer.
+
+**Train / recreate artifacts** (from `backend/`, venv active):
+```bash
+pip install -r requirements.txt
+python -m scripts.train_ml
+```
+Writes `ml/data/wellness_engagement.csv`, `ml/artifacts/engagement_model.joblib` (version `engagement-v1.1.0`), `metrics.json`, `clusters.json`, `pca_clusters.png`.
+
+**Model selection and results** (seed 42, 1500 train / 500 test rows): the model is chosen by 5-fold stratified CV F1 on the training split only, then scored once on the held-out test split.
+- CV F1: Logistic Regression 0.7491 +/- 0.0194, Random Forest 0.7323 +/- 0.0234, always-engaged baseline 0.6673. Chosen: Logistic Regression.
+- Final test (not used for selection): Logistic Regression F1 0.7254, accuracy 0.732; always-engaged prevalence baseline F1 0.6667, accuracy 0.500.
+- K-Means k=3 silhouette 0.2823 (modest separation, exploratory only). Details in `docs/WEEK3_MODEL_COMPARISON.md`.
+
+**Endpoints**
+- `POST /api/v1/predict` body: `{"age":34,"sessions_last_30d":8,"avg_session_minutes":15,"days_since_signup":200,"reminders_opt_in":true,"preferred_channel":"app"}`. Out of range, wrong type, unknown fields: 422. Returns prediction, probability, model_version, disclaimer.
+- `GET /api/v1/model`: metrics and comparison.
+- `GET /api/v1/clusters`: K-Means summary and silhouette.
+- `GET /api/v1/clusters/plot`: the PCA 2D cluster plot as `image/png`.
+- Artifact failures: a missing, damaged, incomplete or wrong-contract model file, or a missing or malformed `metrics.json`, `clusters.json` or plot, returns a generic `503` ("temporarily unavailable"). The detail is logged server-side only, invalid loads are never cached, and replacing the file recovers without a restart. The model contract checked on load: pipeline with `predict_proba`, exact feature schema, known estimator and version, classes `[0, 1]`, and a valid probability pair on a probe row.
+- `POST /api/v1/faq` body `{"question":"..."}`: answer with sources, or safe abstention.
+
+**Frontend:** `/ml` (CV selection table, final test report, predict form, clusters with the PCA plot image) and `/faq`. Both pages check HTTP status and response shape, catch network and parse failures, show separate errors for model info, clusters and prediction, disable buttons while a request is pending, and offer retry. Only a 422 is shown as a question-length problem on `/faq`.
+
+**Frontend tests:** `cd frontend && npm test` compiles the pages with `tsconfig.test.json` and renders them in jsdom with a mocked `fetch` (JSON 503, plain-text 500, rejected fetch, 422, error-shaped 200, pending, retry) in `tests/pages.test.js`.
+
+Docs: `docs/WEEK3_DATASET.md`, `docs/WEEK3_MODEL_COMPARISON.md`, `docs/WEEK3_CLUSTERING.md`, `docs/WEEK3_FAQ_EVAL.md`.
