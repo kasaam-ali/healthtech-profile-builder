@@ -2,11 +2,16 @@
 
 Usage (from backend/):  python -m scripts.train_ml
 
-Steps: generate synthetic data, EDA summary, reproducible stratified split,
-train Logistic Regression and Random Forest inside the same preprocessing
-pipeline (fit on train only, so no leakage), compare metrics, save the best
-pipeline with a version tag, then run K-Means + PCA on non-sensitive
-engagement attributes and save a plot.
+Steps: generate synthetic data, EDA summary, reproducible stratified 75/25
+split, then:
+- model selection uses 5-fold stratified cross-validation on the TRAINING
+  split only (Logistic Regression, Random Forest and two dummy baselines),
+  with preprocessing inside each pipeline so every fold is fit on its own
+  training folds (no leakage);
+- the chosen pipeline is refit on the full training split and scored ONCE on
+  the untouched 25% test split, next to an always-engaged (prevalence) dummy baseline, for
+  the final report;
+- K-Means + PCA on non-sensitive engagement attributes, with a saved plot.
 """
 import json
 from datetime import datetime, timezone
@@ -22,18 +27,22 @@ import matplotlib.pyplot as plt  # noqa: E402
 from sklearn.cluster import KMeans  # noqa: E402
 from sklearn.compose import ColumnTransformer  # noqa: E402
 from sklearn.decomposition import PCA  # noqa: E402
+from sklearn.dummy import DummyClassifier  # noqa: E402
 from sklearn.ensemble import RandomForestClassifier  # noqa: E402
 from sklearn.linear_model import LogisticRegression  # noqa: E402
-from sklearn.metrics import (confusion_matrix, f1_score, precision_score,  # noqa: E402
-                             recall_score, silhouette_score)
-from sklearn.model_selection import train_test_split  # noqa: E402
+from sklearn.metrics import (accuracy_score, confusion_matrix, f1_score,  # noqa: E402
+                             precision_score, recall_score, silhouette_score)
+from sklearn.model_selection import (StratifiedKFold, cross_validate,  # noqa: E402
+                                     train_test_split)
 from sklearn.pipeline import Pipeline  # noqa: E402
 from sklearn.preprocessing import OneHotEncoder, StandardScaler  # noqa: E402
 
 from ml.dataset import (BOOLEAN, CATEGORICAL, FEATURES, LABEL, NUMERIC, SEED,  # noqa: E402
                         generate, write_csv)
 
-MODEL_VERSION = "engagement-v1.0.0"
+MODEL_VERSION = "engagement-v1.1.0"
+CV_FOLDS = 5
+SELECTABLE = ("logistic_regression", "random_forest")
 ART = Path(__file__).resolve().parent.parent / "ml" / "artifacts"
 CLUSTER_FEATURES = ["sessions_last_30d", "avg_session_minutes", "days_since_signup"]
 K = 3
@@ -69,20 +78,39 @@ def main() -> dict:
         "logistic_regression": LogisticRegression(max_iter=1000, random_state=SEED),
         "random_forest": RandomForestClassifier(n_estimators=200, max_depth=8,
                                                 random_state=SEED, n_jobs=1),
+        # Baselines give the scores context; they are never selectable.
+        "dummy_always_engaged": DummyClassifier(strategy="constant", constant=1),
+        "dummy_stratified": DummyClassifier(strategy="stratified", random_state=SEED),
     }
-    results, pipes = {}, {}
+    cv = StratifiedKFold(n_splits=CV_FOLDS, shuffle=True, random_state=SEED)
+    scoring = ["f1", "precision", "recall", "accuracy"]
+    cv_results = {}
     for name, est in candidates.items():
-        pipe = Pipeline([("prep", preprocessor()), ("clf", est)]).fit(X_tr, y_tr)
+        pipe = Pipeline([("prep", preprocessor()), ("clf", est)])
+        s = cross_validate(pipe, X_tr, y_tr, cv=cv, scoring=scoring,
+                           error_score="raise")
+        cv_results[name] = {
+            **{f"{m}_mean": round(float(s[f"test_{m}"].mean()), 4) for m in scoring},
+            "f1_std": round(float(s["test_f1"].std()), 4),
+        }
+    # Selection uses training-only CV F1. The test split is not looked at yet.
+    chosen = max(SELECTABLE, key=lambda n: cv_results[n]["f1_mean"])
+
+    def _test_report(name):
+        pipe = Pipeline([("prep", preprocessor()), ("clf", candidates[name])]).fit(X_tr, y_tr)
         pred = pipe.predict(X_te)
-        results[name] = {
-            "precision": round(float(precision_score(y_te, pred)), 4),
+        return pipe, {
+            "precision": round(float(precision_score(y_te, pred, zero_division=0)), 4),
             "recall": round(float(recall_score(y_te, pred)), 4),
             "f1": round(float(f1_score(y_te, pred)), 4),
-            "confusion_matrix": confusion_matrix(y_te, pred).tolist(),
+            "accuracy": round(float(accuracy_score(y_te, pred)), 4),
+            "confusion_matrix": confusion_matrix(y_te, pred, labels=[0, 1]).tolist(),
         }
-        pipes[name] = pipe
-    chosen = max(results, key=lambda n: results[n]["f1"])
-    joblib.dump({"pipeline": pipes[chosen], "model_version": MODEL_VERSION,
+
+    final_pipe, chosen_test = _test_report(chosen)
+    _, baseline_test = _test_report("dummy_always_engaged")
+    test_results = {chosen: chosen_test, "dummy_always_engaged": baseline_test}
+    joblib.dump({"pipeline": final_pipe, "model_version": MODEL_VERSION,
                  "estimator": chosen, "features": FEATURES}, ART / "engagement_model.joblib")
 
     # Clustering on non-sensitive engagement behaviour only (no age, no channel).
@@ -106,15 +134,27 @@ def main() -> dict:
     metrics = {
         "model_version": MODEL_VERSION, "chosen_estimator": chosen, "seed": SEED,
         "test_size": 0.25, "trained_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
-        "sklearn_version": sklearn.__version__, "eda": eda, "results": results,
+        "sklearn_version": sklearn.__version__, "eda": eda,
+        "selection": {
+            "method": f"{CV_FOLDS}-fold stratified cross-validation on the training split only",
+            "metric": "f1_mean", "train_rows": int(len(X_tr)), "test_rows": int(len(X_te)),
+            "note": "Test split was not used for selection. Test figures are reported once, after selection.",
+        },
+        "cv_results": cv_results,
+        "test_results": test_results,
     }
     (ART / "metrics.json").write_text(json.dumps(metrics, indent=2))
     (ART / "clusters.json").write_text(json.dumps({
         "k": K, "features": CLUSTER_FEATURES, "silhouette": sil,
-        "plot": "backend/ml/artifacts/pca_clusters.png", "clusters": clusters}, indent=2))
-    print(f"model_version={MODEL_VERSION} chosen={chosen}")
-    for n, r in results.items():
-        print(f"  {n}: precision={r['precision']} recall={r['recall']} f1={r['f1']} cm={r['confusion_matrix']}")
+        "plot": "backend/ml/artifacts/pca_clusters.png", "plot_url": "/api/v1/clusters/plot",
+        "clusters": clusters}, indent=2))
+    print(f"model_version={MODEL_VERSION} chosen={chosen} (by {CV_FOLDS}-fold train-only CV F1)")
+    for n, r in cv_results.items():
+        print(f"  cv {n}: f1={r['f1_mean']}+/-{r['f1_std']} precision={r['precision_mean']} "
+              f"recall={r['recall_mean']} accuracy={r['accuracy_mean']}")
+    for n, r in test_results.items():
+        print(f"  test {n}: precision={r['precision']} recall={r['recall']} f1={r['f1']} "
+              f"accuracy={r['accuracy']} cm={r['confusion_matrix']}")
     print(f"kmeans k={K} silhouette={sil}")
     return metrics
 

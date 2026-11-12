@@ -1,9 +1,9 @@
 {
-  "model_version": "engagement-v1.0.0",
+  "model_version": "engagement-v1.1.0",
   "chosen_estimator": "logistic_regression",
   "seed": 42,
   "test_size": 0.25,
-  "trained_at": "2026-11-01T10:19:42+00:00",
+  "trained_at": "2026-11-12T18:12:49+00:00",
   "sklearn_version": "1.5.2",
   "eda": {
     "rows": 2000,
@@ -52,11 +52,49 @@
       }
     }
   },
-  "results": {
+  "selection": {
+    "method": "5-fold stratified cross-validation on the training split only",
+    "metric": "f1_mean",
+    "train_rows": 1500,
+    "test_rows": 500,
+    "note": "Test split was not used for selection. Test figures are reported once, after selection."
+  },
+  "cv_results": {
+    "logistic_regression": {
+      "f1_mean": 0.7491,
+      "precision_mean": 0.7489,
+      "recall_mean": 0.7497,
+      "accuracy_mean": 0.7487,
+      "f1_std": 0.0194
+    },
+    "random_forest": {
+      "f1_mean": 0.7323,
+      "precision_mean": 0.7438,
+      "recall_mean": 0.7218,
+      "accuracy_mean": 0.736,
+      "f1_std": 0.0234
+    },
+    "dummy_always_engaged": {
+      "f1_mean": 0.6673,
+      "precision_mean": 0.5007,
+      "recall_mean": 1.0,
+      "accuracy_mean": 0.5007,
+      "f1_std": 0.0012
+    },
+    "dummy_stratified": {
+      "f1_mean": 0.4867,
+      "precision_mean": 0.4972,
+      "recall_mean": 0.4767,
+      "accuracy_mean": 0.4967,
+      "f1_std": 0.0227
+    }
+  },
+  "test_results": {
     "logistic_regression": {
       "precision": 0.7437,
       "recall": 0.708,
       "f1": 0.7254,
+      "accuracy": 0.732,
       "confusion_matrix": [
         [
           189,
@@ -68,18 +106,19 @@
         ]
       ]
     },
-    "random_forest": {
-      "precision": 0.7489,
-      "recall": 0.668,
-      "f1": 0.7061,
+    "dummy_always_engaged": {
+      "precision": 0.5,
+      "recall": 1.0,
+      "f1": 0.6667,
+      "accuracy": 0.5,
       "confusion_matrix": [
         [
-          194,
-          56
+          0,
+          250
         ],
         [
-          83,
-          167
+          0,
+          250
         ]
       ]
     }

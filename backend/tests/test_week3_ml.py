@@ -10,7 +10,7 @@ def test_predict_happy_path(client):
     d = r.json()
     assert d["prediction"] in {"likely_engaged", "unlikely_engaged"}
     assert 0 <= d["probability"] <= 1
-    assert d["model_version"] == "engagement-v1.0.0"
+    assert d["model_version"] == "engagement-v1.1.0"
     assert "Not medical advice" in d["disclaimer"]
 
 
@@ -48,5 +48,10 @@ def test_clusters_smoke(client):
 
 def test_model_info_has_metrics(client):
     d = client.get("/api/v1/model").json()
-    assert set(d["results"]) == {"logistic_regression", "random_forest"}
-    assert d["model_version"] == "engagement-v1.0.0"
+    assert set(d["cv_results"]) == {"logistic_regression", "random_forest",
+                                    "dummy_always_engaged", "dummy_stratified"}
+    assert "training split only" in d["selection"]["method"]
+    # Final test report covers only the chosen model and the prevalence baseline.
+    assert set(d["test_results"]) == {d["chosen_estimator"], "dummy_always_engaged"}
+    assert d["test_results"][d["chosen_estimator"]]["f1"] > d["test_results"]["dummy_always_engaged"]["f1"]
+    assert d["model_version"] == "engagement-v1.1.0"

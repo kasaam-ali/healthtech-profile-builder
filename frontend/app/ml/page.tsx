@@ -2,8 +2,9 @@
 import { FormEvent, useEffect, useState } from "react";
 import { API } from "../../lib/api";
 
-type Metric = { precision: number; recall: number; f1: number; confusion_matrix: number[][] };
-type ModelInfo = { model_version: string; chosen_estimator: string; results: Record<string, Metric>; disclaimer: string };
+type CvMetric = { f1_mean: number; f1_std: number; precision_mean: number; recall_mean: number; accuracy_mean: number };
+type TestMetric = { precision: number; recall: number; f1: number; accuracy: number; confusion_matrix: number[][] };
+type ModelInfo = { model_version: string; chosen_estimator: string; selection: { method: string }; cv_results: Record<string, CvMetric>; test_results: Record<string, TestMetric>; disclaimer: string };
 type Cluster = { cluster_id: number; size: number; means: Record<string, number>; engaged_rate: number };
 type Clusters = { k: number; silhouette: number; clusters: Cluster[] };
 type Prediction = { prediction: string; probability: number; model_version: string; disclaimer: string };
@@ -40,10 +41,16 @@ export default function MlPage() {
       <h2>Model comparison</h2>
       {info && (
         <>
-          <p>Version <code>{info.model_version}</code>, chosen by F1: {info.chosen_estimator}</p>
-          <table><thead><tr><th>Model</th><th>Precision</th><th>Recall</th><th>F1</th><th>Confusion [[TN, FP], [FN, TP]]</th></tr></thead>
-            <tbody>{Object.entries(info.results).map(([n, m]) => (
-              <tr key={n}><td>{n}</td><td>{m.precision}</td><td>{m.recall}</td><td>{m.f1}</td><td>{JSON.stringify(m.confusion_matrix)}</td></tr>
+          <p>Version <code>{info.model_version}</code>, chosen by {info.selection.method} (F1): {info.chosen_estimator}</p>
+          <h3>Selection evidence (cross-validation on the training split only)</h3>
+          <table><thead><tr><th>Model</th><th>CV F1 (mean +/- std)</th><th>CV precision</th><th>CV recall</th><th>CV accuracy</th></tr></thead>
+            <tbody>{Object.entries(info.cv_results).map(([n, m]) => (
+              <tr key={n}><td>{n}</td><td>{m.f1_mean} +/- {m.f1_std}</td><td>{m.precision_mean}</td><td>{m.recall_mean}</td><td>{m.accuracy_mean}</td></tr>
+            ))}</tbody></table>
+          <h3>Final held-out test report (not used for selection)</h3>
+          <table><thead><tr><th>Model</th><th>Precision</th><th>Recall</th><th>F1</th><th>Accuracy</th><th>Confusion [[TN, FP], [FN, TP]]</th></tr></thead>
+            <tbody>{Object.entries(info.test_results).map(([n, m]) => (
+              <tr key={n}><td>{n}</td><td>{m.precision}</td><td>{m.recall}</td><td>{m.f1}</td><td>{m.accuracy}</td><td>{JSON.stringify(m.confusion_matrix)}</td></tr>
             ))}</tbody></table>
         </>
       )}

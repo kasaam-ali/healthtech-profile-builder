@@ -7,6 +7,7 @@
   ],
   "silhouette": 0.2823,
   "plot": "backend/ml/artifacts/pca_clusters.png",
+  "plot_url": "/api/v1/clusters/plot",
   "clusters": [
     {
       "cluster_id": 0,

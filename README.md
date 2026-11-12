@@ -161,7 +161,12 @@ Indexes on every `user_id` FK (unique for 1:1 sections), `demographics.city` (ad
 pip install -r requirements.txt
 python -m scripts.train_ml
 ```
-Writes `ml/data/wellness_engagement.csv`, `ml/artifacts/engagement_model.joblib` (version `engagement-v1.0.0`), `metrics.json`, `clusters.json`, `pca_clusters.png`.
+Writes `ml/data/wellness_engagement.csv`, `ml/artifacts/engagement_model.joblib` (version `engagement-v1.1.0`), `metrics.json`, `clusters.json`, `pca_clusters.png`.
+
+**Model selection and results** (seed 42, 1500 train / 500 test rows): the model is chosen by 5-fold stratified CV F1 on the training split only, then scored once on the held-out test split.
+- CV F1: Logistic Regression 0.7491 +/- 0.0194, Random Forest 0.7323 +/- 0.0234, always-engaged baseline 0.6673. Chosen: Logistic Regression.
+- Final test (not used for selection): Logistic Regression F1 0.7254, accuracy 0.732; always-engaged prevalence baseline F1 0.6667, accuracy 0.500.
+- K-Means k=3 silhouette 0.2823 (modest separation, exploratory only). Details in `docs/WEEK3_MODEL_COMPARISON.md`.
 
 **Endpoints**
 - `POST /api/v1/predict` body: `{"age":34,"sessions_last_30d":8,"avg_session_minutes":15,"days_since_signup":200,"reminders_opt_in":true,"preferred_channel":"app"}`. Out of range, wrong type, unknown fields: 422. Returns prediction, probability, model_version, disclaimer.
