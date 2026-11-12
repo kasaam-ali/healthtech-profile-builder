@@ -172,6 +172,8 @@ Writes `ml/data/wellness_engagement.csv`, `ml/artifacts/engagement_model.joblib`
 - `POST /api/v1/predict` body: `{"age":34,"sessions_last_30d":8,"avg_session_minutes":15,"days_since_signup":200,"reminders_opt_in":true,"preferred_channel":"app"}`. Out of range, wrong type, unknown fields: 422. Returns prediction, probability, model_version, disclaimer.
 - `GET /api/v1/model`: metrics and comparison.
 - `GET /api/v1/clusters`: K-Means summary and silhouette.
+- `GET /api/v1/clusters/plot`: the PCA 2D cluster plot as `image/png`.
+- Artifact failures: a missing, damaged, incomplete or wrong-contract model file, or a missing or malformed `metrics.json`, `clusters.json` or plot, returns a generic `503` ("temporarily unavailable"). The detail is logged server-side only, invalid loads are never cached, and replacing the file recovers without a restart. The model contract checked on load: pipeline with `predict_proba`, exact feature schema, known estimator and version, classes `[0, 1]`, and a valid probability pair on a probe row.
 - `POST /api/v1/faq` body `{"question":"..."}`: answer with sources, or safe abstention.
 
 **Frontend:** `/ml` (comparison, predict form, clusters) and `/faq`.
