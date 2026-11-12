@@ -176,6 +176,8 @@ Writes `ml/data/wellness_engagement.csv`, `ml/artifacts/engagement_model.joblib`
 - Artifact failures: a missing, damaged, incomplete or wrong-contract model file, or a missing or malformed `metrics.json`, `clusters.json` or plot, returns a generic `503` ("temporarily unavailable"). The detail is logged server-side only, invalid loads are never cached, and replacing the file recovers without a restart. The model contract checked on load: pipeline with `predict_proba`, exact feature schema, known estimator and version, classes `[0, 1]`, and a valid probability pair on a probe row.
 - `POST /api/v1/faq` body `{"question":"..."}`: answer with sources, or safe abstention.
 
-**Frontend:** `/ml` (comparison, predict form, clusters) and `/faq`.
+**Frontend:** `/ml` (CV selection table, final test report, predict form, clusters with the PCA plot image) and `/faq`. Both pages check HTTP status and response shape, catch network and parse failures, show separate errors for model info, clusters and prediction, disable buttons while a request is pending, and offer retry. Only a 422 is shown as a question-length problem on `/faq`.
+
+**Frontend tests:** `cd frontend && npm test` compiles the pages with `tsconfig.test.json` and renders them in jsdom with a mocked `fetch` (JSON 503, plain-text 500, rejected fetch, 422, error-shaped 200, pending, retry) in `tests/pages.test.js`.
 
 Docs: `docs/WEEK3_DATASET.md`, `docs/WEEK3_MODEL_COMPARISON.md`, `docs/WEEK3_CLUSTERING.md`, `docs/WEEK3_FAQ_EVAL.md`.
