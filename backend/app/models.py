@@ -1,6 +1,6 @@
 from datetime import date, datetime, timezone
 
-from sqlalchemy import JSON, Boolean, Date, DateTime, ForeignKey, Index, String
+from sqlalchemy import JSON, Boolean, Date, DateTime, ForeignKey, Index, String, text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from .db import Base
@@ -84,4 +84,23 @@ class AuditEvent(Base):
     resource_type: Mapped[str] = mapped_column(String(60))
     resource_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
     metadata_json: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=_now)
+
+
+class AppointmentHold(Base):
+    """Week 4 mock write: a member's temporary hold on a fictional schedule slot.
+    Partial unique index on active (status='held') holds prevents double holds while
+    allowing released/expired slot history."""
+    __tablename__ = "appointment_holds"
+    __table_args__ = (
+        Index("ix_holds_user_created", "user_id", "created_at"),
+        Index("uq_active_slot_id", "slot_id", unique=True,
+              sqlite_where=text("status = 'held'"),
+              postgresql_where=text("status = 'held'")),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"))
+    slot_id: Mapped[str] = mapped_column(String(40))
+    status: Mapped[str] = mapped_column(String(20), default="held")
     created_at: Mapped[datetime] = mapped_column(DateTime, default=_now)

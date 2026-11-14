@@ -3,7 +3,7 @@
 // shape, and turns transport, parse and server failures into a typed result
 // with a message the page can show. Nothing here throws.
 
-export type Fail = { ok: false; kind: "network" | "unavailable" | "validation" | "server" | "shape"; status?: number; message: string };
+export type Fail = { ok: false; kind: "network" | "unavailable" | "validation" | "server" | "shape"; status?: number; message: string; detail?: string };
 export type Result<T> = { ok: true; data: T } | Fail;
 
 export type CvMetric = { f1_mean: number; f1_std: number; precision_mean: number; recall_mean: number; accuracy_mean: number };
@@ -71,7 +71,8 @@ export async function requestJson<T>(fetchImpl: typeof fetch, url: string, init:
       return { ok: false, kind: "validation", status: 422, message: msg.validation ?? v ?? "Some inputs are invalid." };
     }
     if (res.status === 503) return { ok: false, kind: "unavailable", status: 503, message: msg.unavailable };
-    return { ok: false, kind: "server", status: res.status, message: `The server had a problem (HTTP ${res.status}). Please try again.` };
+    const detail = isObj(body) && isStr(body.detail) ? body.detail : undefined;
+    return { ok: false, kind: "server", status: res.status, message: `The server had a problem (HTTP ${res.status}). Please try again.`, detail };
   }
   if (!guard(body)) return { ok: false, kind: "shape", status: res.status, message: "The server sent an unexpected response. Please try again." };
   return { ok: true, data: body };

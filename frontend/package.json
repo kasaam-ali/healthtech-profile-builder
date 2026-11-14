@@ -5,6 +5,7 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
+    "lint": "tsc --noEmit",
     "test": "tsc -p tsconfig.test.json && node --test tests/*.test.js"
   },
   "dependencies": {
