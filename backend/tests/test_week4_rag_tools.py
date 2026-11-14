@@ -1,6 +1,6 @@
 import json
 import threading
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta
 
 from fastapi.testclient import TestClient
 from sqlalchemy import select
