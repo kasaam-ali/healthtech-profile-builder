@@ -1,8 +1,14 @@
-"""Week 4: RAG FAQ citations/abstention, tools, confirmation gate, failure safety, e2e."""
+import json
+import threading
+from datetime import datetime, timedelta, timezone
+
+from fastapi.testclient import TestClient
 from sqlalchemy import select
 
+from app import rag_api as rag_api_mod
 from app.db import SessionLocal
-from app.models import AppointmentHold, AuditEvent
+from app.main import app
+from app.models import AppointmentHold, AuditEvent, User
 from ml import rag
 from tests.test_week2_profiles import CONTACT, DEMO, member
 
@@ -176,3 +182,194 @@ def test_eval_tuned_beats_or_matches_baseline():
     for r in rows:
         if r["kind"] in ("injection", "medical"):
             assert r["baseline"][0] == r["tuned"][0] == "PASS"
+
+
+def test_hold_quota_concurrency_race(client, monkeypatch):
+    """From 1 existing active hold, concurrent requests A and B for two DIFFERENT open slots
+    must serialize on the write reservation. Exactly one succeeds, the second sees active=2
+    and receives 409 conflict. The member never ends up with 3 active holds."""
+    h = member(client, "race@example.com", "Race Member")
+    assert client.post("/api/v2/tools/request_appointment_hold",
+                       json={"slot_id": "S-2026-11-09-0900", "human_confirmed": True},
+                       headers=h).status_code == 201
+
+    a_inside = threading.Event()
+    release_a = threading.Event()
+    real_record = rag_api_mod.audit.record
+    calls = []
+
+    def paused_record(db, actor, action, rtype, rid=None, meta=None):
+        if action == "tool.approved_write":
+            calls.append(action)
+            if len(calls) == 1:
+                a_inside.set()
+                assert release_a.wait(10)
+        return real_record(db, actor, action, rtype, rid, meta)
+
+    monkeypatch.setattr(rag_api_mod.audit, "record", paused_record)
+    results = {}
+
+    def go(name, slot_id):
+        c = TestClient(app)
+        results[name] = c.post("/api/v2/tools/request_appointment_hold",
+                               json={"slot_id": slot_id, "human_confirmed": True},
+                               headers=h)
+
+    ta = threading.Thread(target=go, args=("A", "S-2026-11-09-1400"), name="req-A")
+    tb = threading.Thread(target=go, args=("B", "S-2026-11-10-0900"), name="req-B")
+    ta.start()
+    assert a_inside.wait(10)
+    tb.start()
+    tb.join(0.5)
+    assert tb.is_alive(), "B must block on write reservation while A holds it"
+    release_a.set()
+    ta.join(10); tb.join(10)
+
+    statuses = {results["A"].status_code, results["B"].status_code}
+    assert statuses == {201, 409}
+    failed_res = results["A"] if results["A"].status_code == 409 else results["B"]
+    assert "At most 2 active holds" in failed_res.json()["detail"]
+
+    with SessionLocal() as db:
+        active_holds = db.scalars(select(AppointmentHold).where(AppointmentHold.status == "held")).all()
+        assert len(active_holds) == 2, "Member must have exactly 2 active holds, never 3"
+
+
+def test_hold_expiry_lifecycle(client, monkeypatch):
+    """Holds older than 24 hours must expire, freeing up quota and slot availability."""
+    h = member(client, "expiry@example.com", "Expiry Member")
+    now = datetime(2026, 11, 14, 12, 0, 0)
+    monkeypatch.setattr(rag_api_mod, "get_now", lambda: now)
+
+    # 1. Insert a hold created 48 hours ago
+    past = now - timedelta(hours=48)
+    with SessionLocal() as db:
+        user_row = db.scalar(select(User).where(User.email == "expiry@example.com"))
+        db.add(AppointmentHold(user_id=user_row.id, slot_id="S-2026-11-09-0900", status="held", created_at=past))
+        db.commit()
+
+    # 2. Check availability: expired hold slot must be available again
+    avail = client.post("/api/v2/tools/check_appointment_availability", json={"date": "2026-11-09"}).json()
+    assert "S-2026-11-09-0900" in {s["slot_id"] for s in avail["slots"]}
+
+    # 3. Check my_holds: expired hold is marked expired
+    my_holds = client.get("/api/v2/tools/my_holds", headers=h).json()
+    assert len(my_holds) == 1
+    assert my_holds[0]["status"] == "expired"
+
+    # 4. Quota restored: member can request new holds up to max quota
+    r1 = client.post("/api/v2/tools/request_appointment_hold",
+                     json={"slot_id": "S-2026-11-09-1400", "human_confirmed": True}, headers=h)
+    assert r1.status_code == 201
+
+    # 5. Re-holding the previously expired slot succeeds
+    r2 = client.post("/api/v2/tools/request_appointment_hold",
+                     json={"slot_id": "S-2026-11-09-0900", "human_confirmed": True}, headers=h)
+    assert r2.status_code == 201
+    assert r2.json()["status"] == "held"
+
+
+def test_hold_release_lifecycle(client):
+    """Members can release their own holds. Released slots become immediately available,
+    cross-member release is forbidden (404), and released holds cannot be re-released."""
+    a = member(client, "alice@example.com", "Alice")
+    b = member(client, "bob@example.com", "Bob")
+
+    # Alice holds slot
+    r = client.post("/api/v2/tools/request_appointment_hold",
+                    json={"slot_id": "S-2026-11-09-0900", "human_confirmed": True}, headers=a)
+    assert r.status_code == 201
+    hold_id = r.json()["hold_id"]
+
+    # Slot is not available
+    avail1 = client.post("/api/v2/tools/check_appointment_availability", json={"date": "2026-11-09"}).json()
+    assert "S-2026-11-09-0900" not in {s["slot_id"] for s in avail1["slots"]}
+
+    # Bob attempts to release Alice's hold -> 404
+    bob_rel = client.post("/api/v2/tools/release_appointment_hold", json={"hold_id": hold_id}, headers=b)
+    assert bob_rel.status_code == 404
+
+    # Alice releases her own hold -> 200
+    alice_rel = client.post("/api/v2/tools/release_appointment_hold", json={"hold_id": hold_id}, headers=a)
+    assert alice_rel.status_code == 200
+    assert alice_rel.json()["status"] == "released"
+
+    # Audit event is recorded
+    with SessionLocal() as db:
+        rel_event = db.scalar(select(AuditEvent).where(AuditEvent.action == "tool.approved_write",
+                                                       AuditEvent.resource_id == "release_appointment_hold"))
+        assert rel_event is not None
+        assert rel_event.metadata_json["status"] == "released"
+
+    # Slot is now available again
+    avail2 = client.post("/api/v2/tools/check_appointment_availability", json={"date": "2026-11-09"}).json()
+    assert "S-2026-11-09-0900" in {s["slot_id"] for s in avail2["slots"]}
+
+    # Releasing already released hold -> 409
+    dup_rel = client.post("/api/v2/tools/release_appointment_hold", json={"hold_id": hold_id}, headers=a)
+    assert dup_rel.status_code == 409
+
+    # Bob can now hold that same slot
+    bob_hold = client.post("/api/v2/tools/request_appointment_hold",
+                           json={"slot_id": "S-2026-11-09-0900", "human_confirmed": True}, headers=b)
+    assert bob_hold.status_code == 201
+
+
+def test_schedule_loading_failures_and_recovery(client, tmp_path, monkeypatch):
+    """Schedule loading errors (missing or malformed) return controlled 503 without leaking paths."""
+    bad_file = tmp_path / "schedule.json"
+
+    # Missing file -> 503
+    monkeypatch.setattr(rag_api_mod, "SCHEDULE_PATH", bad_file)
+    r1 = client.post("/api/v2/tools/check_appointment_availability", json={})
+    assert r1.status_code == 503 and "schedule is temporarily unavailable" in r1.json()["detail"]
+
+    # Corrupt JSON -> 503
+    bad_file.write_text("{corrupt json", encoding="utf-8")
+    r2 = client.post("/api/v2/tools/check_appointment_availability", json={})
+    assert r2.status_code == 503
+
+    # Restore valid file -> immediately 200 without restart
+    valid_data = json.dumps({"slots": [{"slot_id": "S-2026-11-09-0900", "date": "2026-11-09",
+                                        "start": "09:00", "coach": "Coach", "status": "open"}]})
+    bad_file.write_text(valid_data, encoding="utf-8")
+    r3 = client.post("/api/v2/tools/check_appointment_availability", json={})
+    assert r3.status_code == 200
+    assert len(r3.json()["slots"]) == 1
+
+
+def test_unsupported_doctor_question_abstains(client):
+    """Questions asking for entities not supported in the approved documents (such as doctor counts)
+    must honestly abstain instead of returning high-similarity ungrounded chunks."""
+    r = faq(client, "How many doctors work at the clinic?")
+    assert r.status_code == 200
+    d = r.json()
+    assert d["abstained"] is True and d["reason"] == "insufficient_evidence"
+    assert "could not find this" in d["answer"]
+
+
+def test_rag_docs_loading_failures_and_recovery(client, tmp_path, monkeypatch):
+    """Corrupt or missing docs directory returns controlled 503; restored docs return 200."""
+    docs_dir = tmp_path / "clinic_docs"
+    docs_dir.mkdir()
+    monkeypatch.setattr(rag, "DOCS_DIR", docs_dir)
+
+    # 1. Empty docs dir (no .md files) -> 503
+    r1 = faq(client, "How long does a hold last?")
+    assert r1.status_code == 503 and "unavailable" in r1.json()["detail"]
+
+    # 2. Corrupt doc (missing front matter) -> 503
+    doc_file = docs_dir / "doc-001.md"
+    doc_file.write_text("Just raw text without yaml frontmatter", encoding="utf-8")
+    r2 = faq(client, "How long does a hold last?")
+    assert r2.status_code == 503
+
+    # 3. Restore valid doc -> immediately 200 without server restart
+    valid_doc = "---\nid: DOC-001\ntitle: Hold Policy\n---\nA hold lasts 24 hours.\n"
+    doc_file.write_text(valid_doc, encoding="utf-8")
+    r3 = faq(client, "How long does a hold last?")
+    assert r3.status_code == 200
+    assert not r3.json()["abstained"]
+    assert "24 hours" in r3.json()["answer"]
+
+

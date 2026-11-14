@@ -24,13 +24,16 @@ def upgrade() -> None:
         sa.Column("created_at", sa.DateTime(), nullable=False),
         sa.ForeignKeyConstraint(["user_id"], ["users.id"], ondelete="CASCADE"),
         sa.PrimaryKeyConstraint("id"),
-        sa.UniqueConstraint("slot_id"),
     )
     with op.batch_alter_table("appointment_holds") as b:
         b.create_index("ix_holds_user_created", ["user_id", "created_at"], unique=False)
+        b.create_index("uq_active_slot_id", ["slot_id"], unique=True,
+                       sqlite_where=sa.text("status = 'held'"),
+                       postgresql_where=sa.text("status = 'held'"))
 
 
 def downgrade() -> None:
     with op.batch_alter_table("appointment_holds") as b:
+        b.drop_index("uq_active_slot_id")
         b.drop_index("ix_holds_user_created")
     op.drop_table("appointment_holds")
