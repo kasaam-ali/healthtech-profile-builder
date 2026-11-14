@@ -33,7 +33,8 @@ const json503 = (detail = "Document retrieval is temporarily unavailable. Please
 const text500 = () => res(500, "Internal Server Error", "text/plain");
 const rejected = () => () => Promise.reject(new TypeError("Failed to fetch"));
 
-const FAQ = "/api/v2/faq", AVAIL = "/api/v2/tools/check_appointment_availability", HOLDP = "/api/v2/tools/request_appointment_hold";
+const FAQ = "/api/v2/faq", AVAIL = "/api/v2/tools/check_appointment_availability", HOLDP = "/api/v2/tools/request_appointment_hold", RELEASEP = "/api/v2/tools/release_appointment_hold";
+const RELEASE_OK = { tool: "release_appointment_hold", hold_id: 1, slot_id: "S-2026-11-20-1000", status: "released", note: "Hold has been released. The slot is now available." };
 
 function mockFetch(routes) {
   const calls = [];
@@ -204,3 +205,22 @@ for (const [name, handler, expected, retry] of [
     }
   });
 }
+
+test("assistant: active hold renders release button and releases successfully", async () => {
+  sessionStorage.setItem("access_token", "member-token");
+  const calls = mockFetch({ [AVAIL]: ok(SLOTS), [HOLDP]: res(201, HOLD), [RELEASEP]: ok(RELEASE_OK) });
+  const c = await render();
+  await submit(c, "slots-form");
+  await pickSlotAndConfirm(c);
+  await click(button(c, "Request hold"));
+  assert.match(text(byTestId(c, "hold-ok")), /Hold requested for S-2026-11-20-1000/);
+  const relBtn = button(c, "Release hold");
+  assert.ok(relBtn);
+  await click(relBtn);
+  const relCall = calls.find((x) => x.path === RELEASEP);
+  assert.ok(relCall);
+  assert.equal(relCall.init.headers.Authorization, "Bearer member-token");
+  assert.deepStrictEqual(JSON.parse(relCall.init.body), { hold_id: 1 });
+  assert.match(text(byTestId(c, "hold-ok")), /was released/);
+});
+

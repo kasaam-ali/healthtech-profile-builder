@@ -55,3 +55,21 @@ export async function requestHold(api: string, slotId: string, confirmed: boolea
   if ((fail.status === 400 || fail.status === 409) && fail.detail) return { ...fail, kind: "validation", message: fail.detail };
   return fail;
 }
+
+export type ReleaseResult = { tool: string; hold_id: number; slot_id: string; status: string; note: string };
+export const isReleaseResult = (x: unknown): x is ReleaseResult =>
+  isObj(x) && typeof x.hold_id === "number" && isStr(x.slot_id) && isStr(x.status);
+
+export async function releaseHold(api: string, holdId: number | string, token: string | null, f: typeof fetch = fetch): Promise<Result<ReleaseResult>> {
+  if (!token) return { ok: false, kind: "validation", status: 401, message: "Please log in to release a hold." };
+  const body = typeof holdId === "number" ? { hold_id: holdId } : { slot_id: holdId };
+  const r = await requestJson(f, `${api}/api/v2/tools/release_appointment_hold`, json(body, token), isReleaseResult, {
+    unavailable: "Calendar provider unavailable. Please try again.",
+  });
+  if (r.ok || r.kind !== "server") return r;
+  const fail: Fail = r;
+  if (fail.status === 401) return { ...fail, kind: "validation", message: "Your session expired. Please log in again." };
+  if ((fail.status === 400 || fail.status === 404 || fail.status === 409) && fail.detail) return { ...fail, kind: "validation", message: fail.detail };
+  return fail;
+}
+

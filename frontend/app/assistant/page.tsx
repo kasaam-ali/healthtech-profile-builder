@@ -1,7 +1,7 @@
 "use client";
 import { FormEvent, useState } from "react";
 import { API, tokenStore } from "../../lib/api";
-import { RagAnswer, Slot, askRag, checkAvailability, requestHold } from "../../lib/assistantClient";
+import { RagAnswer, Slot, askRag, checkAvailability, releaseHold, requestHold } from "../../lib/assistantClient";
 
 type Err = { message: string; retryable: boolean } | null;
 
@@ -22,6 +22,8 @@ export default function AssistantPage() {
   const [holdMsg, setHoldMsg] = useState("");
   const [holdErr, setHoldErr] = useState<Err>(null);
   const [holding, setHolding] = useState(false);
+  const [activeHold, setActiveHold] = useState<{ hold_id: number; slot_id: string } | null>(null);
+  const [releasing, setReleasing] = useState(false);
 
   async function sendQuestion() {
     if (asking) return;
@@ -48,7 +50,22 @@ export default function AssistantPage() {
     setHolding(false);
     if (r.ok) {
       setHoldMsg(`Hold requested for ${r.data.slot_id}. ${r.data.note}`);
+      setActiveHold({ hold_id: r.data.hold_id, slot_id: r.data.slot_id });
       setSlots(slots.filter((s) => s.slot_id !== picked)); setPicked(""); setConfirmed(false);
+      return;
+    }
+    if (r.status === 401) tokenStore.clear();
+    setHoldErr({ message: r.message, retryable: r.kind !== "validation" });
+  }
+
+  async function sendRelease() {
+    if (releasing || !activeHold) return;
+    setHoldErr(null); setReleasing(true);
+    const r = await releaseHold(API, activeHold.hold_id, tokenStore.get());
+    setReleasing(false);
+    if (r.ok) {
+      setHoldMsg(`Hold on ${activeHold.slot_id} was released. The slot is available again.`);
+      setActiveHold(null);
       return;
     }
     if (r.status === 401) tokenStore.clear();
@@ -112,7 +129,16 @@ export default function AssistantPage() {
           </button>
         </fieldset>
       )}
-      {holdMsg && <p data-testid="hold-ok">{holdMsg}</p>}
+      {holdMsg && (
+        <div data-testid="hold-ok">
+          <p>{holdMsg}</p>
+          {activeHold && (
+            <button type="button" onClick={() => void sendRelease()} disabled={releasing}>
+              {releasing ? "Releasing hold..." : "Release hold"}
+            </button>
+          )}
+        </div>
+      )}
       {holdErr && (
         <div role="alert" data-testid="hold-error">
           <p style={{ color: "crimson" }}>{holdErr.message}</p>
