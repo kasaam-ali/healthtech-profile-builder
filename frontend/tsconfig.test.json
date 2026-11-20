@@ -4,5 +4,5 @@
     "strict": true, "esModuleInterop": true, "skipLibCheck": true, "lib": ["dom", "dom.iterable", "es2020"],
     "outDir": ".test-build", "rootDir": ".", "noEmit": false, "incremental": false
   },
-  "files": ["lib/profileState.ts", "lib/mlClient.ts", "lib/api.ts", "app/ml/page.tsx", "app/faq/page.tsx"]
+  "files": ["lib/profileState.ts", "lib/mlClient.ts", "lib/api.ts", "app/ml/page.tsx", "app/faq/page.tsx", "lib/assistantClient.ts", "app/assistant/page.tsx"]
 }

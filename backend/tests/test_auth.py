@@ -1,4 +1,3 @@
-from app.security import create_refresh_token
 
 ORIGIN = {"Origin": "http://localhost:3000"}
 USER = {"email": "sara.demo@example.com", "full_name": "Sara Demo", "password": "DemoPass123!"}

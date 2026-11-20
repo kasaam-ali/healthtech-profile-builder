@@ -19,7 +19,7 @@ def test_alembic_upgrade_head_on_clean_db(tmp_path):
     insp = inspect(create_engine(f"sqlite:///{db}"))
     tables = set(insp.get_table_names())
     assert {"users", "admin_sessions", "demographics", "wellness_preferences",
-            "emergency_contacts", "audit_events", "alembic_version"} <= tables
+            "emergency_contacts", "audit_events", "appointment_holds", "alembic_version"} <= tables
     idx = {i["name"] for t in tables for i in insp.get_indexes(t)}
     assert {"ix_demographics_user_id", "ix_demographics_city", "ix_audit_actor_created",
             "ix_emergency_contacts_user_id", "ix_users_email"} <= idx

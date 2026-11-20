@@ -1,0 +1,24 @@
+# Local demo only. Fictional data. Dev secrets come from backend/.env (never commit it).
+services:
+  backend:
+    build: ./backend
+    env_file: ./backend/.env
+    environment:
+      ENVIRONMENT: development
+      DATABASE_URL: sqlite:////data/healthtech.db
+      CORS_ORIGINS: http://localhost:3000
+    volumes:
+      - backend-data:/data
+    ports:
+      - "8000:8000"
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        NEXT_PUBLIC_API_URL: http://localhost:8000
+    ports:
+      - "3000:3000"
+    depends_on:
+      - backend
+volumes:
+  backend-data:
