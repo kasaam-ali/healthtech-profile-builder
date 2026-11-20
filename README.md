@@ -1,4 +1,4 @@
-# HealthTech Profile Builder
+#             👨‍⚕️HealthTech Profile Builder
 
 [![Python](https://img.shields.io/badge/Python-3.13-3776AB?logo=python&logoColor=white)](https://www.python.org/)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.115-009688?logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com/)
