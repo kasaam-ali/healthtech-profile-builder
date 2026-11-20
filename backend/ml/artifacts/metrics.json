@@ -1,0 +1,126 @@
+{
+  "model_version": "engagement-v1.1.0",
+  "chosen_estimator": "logistic_regression",
+  "seed": 42,
+  "test_size": 0.25,
+  "trained_at": "2026-11-12T18:12:49+00:00",
+  "sklearn_version": "1.5.2",
+  "eda": {
+    "rows": 2000,
+    "positive_rate": 0.5005,
+    "missing_values": 0,
+    "numeric_summary": {
+      "age": {
+        "count": 2000.0,
+        "mean": 51.49,
+        "std": 19.71,
+        "min": 18.0,
+        "25%": 34.0,
+        "50%": 52.0,
+        "75%": 69.0,
+        "max": 85.0
+      },
+      "sessions_last_30d": {
+        "count": 2000.0,
+        "mean": 5.98,
+        "std": 2.46,
+        "min": 0.0,
+        "25%": 4.0,
+        "50%": 6.0,
+        "75%": 7.0,
+        "max": 18.0
+      },
+      "avg_session_minutes": {
+        "count": 2000.0,
+        "mean": 15.97,
+        "std": 11.35,
+        "min": 1.0,
+        "25%": 7.5,
+        "50%": 13.3,
+        "75%": 21.4,
+        "max": 74.4
+      },
+      "days_since_signup": {
+        "count": 2000.0,
+        "mean": 503.88,
+        "std": 289.88,
+        "min": 1.0,
+        "25%": 250.5,
+        "50%": 506.0,
+        "75%": 751.25,
+        "max": 999.0
+      }
+    }
+  },
+  "selection": {
+    "method": "5-fold stratified cross-validation on the training split only",
+    "metric": "f1_mean",
+    "train_rows": 1500,
+    "test_rows": 500,
+    "note": "Test split was not used for selection. Test figures are reported once, after selection."
+  },
+  "cv_results": {
+    "logistic_regression": {
+      "f1_mean": 0.7491,
+      "precision_mean": 0.7489,
+      "recall_mean": 0.7497,
+      "accuracy_mean": 0.7487,
+      "f1_std": 0.0194
+    },
+    "random_forest": {
+      "f1_mean": 0.7323,
+      "precision_mean": 0.7438,
+      "recall_mean": 0.7218,
+      "accuracy_mean": 0.736,
+      "f1_std": 0.0234
+    },
+    "dummy_always_engaged": {
+      "f1_mean": 0.6673,
+      "precision_mean": 0.5007,
+      "recall_mean": 1.0,
+      "accuracy_mean": 0.5007,
+      "f1_std": 0.0012
+    },
+    "dummy_stratified": {
+      "f1_mean": 0.4867,
+      "precision_mean": 0.4972,
+      "recall_mean": 0.4767,
+      "accuracy_mean": 0.4967,
+      "f1_std": 0.0227
+    }
+  },
+  "test_results": {
+    "logistic_regression": {
+      "precision": 0.7437,
+      "recall": 0.708,
+      "f1": 0.7254,
+      "accuracy": 0.732,
+      "confusion_matrix": [
+        [
+          189,
+          61
+        ],
+        [
+          73,
+          177
+        ]
+      ]
+    },
+    "dummy_always_engaged": {
+      "precision": 0.5,
+      "recall": 1.0,
+      "f1": 0.6667,
+      "accuracy": 0.5,
+      "confusion_matrix": [
+        [
+          0,
+          250
+        ],
+        [
+          0,
+          250
+        ]
+      ]
+    }
+  }
+}
