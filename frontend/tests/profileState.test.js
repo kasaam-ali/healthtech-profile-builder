@@ -2,7 +2,7 @@
 // responses applied in arbitrary order must not lose updates. Run with `npm test`.
 const test = require("node:test");
 const assert = require("node:assert");
-const s = require("../.test-build/profileState.js");
+const s = require("../.test-build/lib/profileState.js");
 
 const c = (id, name = `C${id}`) => ({ id, name, phone: `+9230000000${id}`, relationship: "friend" });
 
