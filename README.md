@@ -1,14 +1,23 @@
-#             👨‍⚕️HealthTech Profile Builder
+<div align="center">
 
-[![Python](https://img.shields.io/badge/Python-3.13-3776AB?logo=python&logoColor=white)](https://www.python.org/)
-[![FastAPI](https://img.shields.io/badge/FastAPI-0.115-009688?logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com/)
-[![Next.js](https://img.shields.io/badge/Next.js-14.2-000000?logo=nextdotjs&logoColor=white)](https://nextjs.org/)
-[![scikit-learn](https://img.shields.io/badge/scikit--learn-1.5-F7931E?logo=scikitlearn&logoColor=white)](https://scikit-learn.org/)
-[![SQLite](https://img.shields.io/badge/SQLite-003B57?logo=sqlite&logoColor=white)](https://www.sqlite.org/)
-[![Docker](https://img.shields.io/badge/Docker-Compose-2496ED?logo=docker&logoColor=white)](https://docs.docker.com/compose/)
-[![Tests](https://img.shields.io/badge/tests-pytest-0A7A3E)](#-testing)
+# 👨‍⚕️ HealthTech Profile Builder
 
-A full-stack internship project for building member wellness profiles with signed-in APIs, ownership-scoped data, educational machine learning, and a cited FAQ assistant.
+<p align="center">
+  <strong>An AI/ML internship project for building member wellness profiles with signed-in APIs, ownership-scoped data, educational machine learning, and a cited FAQ assistant.</strong>
+</p>
+
+<p align="center">
+  <a href="https://www.python.org/"><img src="https://img.shields.io/badge/Python-3.13-3776AB?style=for-the-badge&logo=python&logoColor=white" alt="Python" /></a>
+  <a href="https://fastapi.tiangolo.com/"><img src="https://img.shields.io/badge/FastAPI-0.115-009688?style=for-the-badge&logo=fastapi&logoColor=white" alt="FastAPI" /></a>
+  <a href="https://scikit-learn.org/"><img src="https://img.shields.io/badge/scikit--learn-1.5-F7931E?style=for-the-badge&logo=scikitlearn&logoColor=white" alt="scikit-learn" /></a>
+  <a href="https://nextjs.org/"><img src="https://img.shields.io/badge/Next.js-14.2-000000?style=for-the-badge&logo=nextdotjs&logoColor=white" alt="Next.js" /></a>
+  <a href="https://www.typescriptlang.org/"><img src="https://img.shields.io/badge/TypeScript-5.6-3178C6?style=for-the-badge&logo=typescript&logoColor=white" alt="TypeScript" /></a>
+  <a href="https://www.sqlite.org/"><img src="https://img.shields.io/badge/SQLite-003B57?style=for-the-badge&logo=sqlite&logoColor=white" alt="SQLite" /></a>
+  <a href="https://docs.docker.com/compose/"><img src="https://img.shields.io/badge/Docker-Compose-2496ED?style=for-the-badge&logo=docker&logoColor=white" alt="Docker" /></a>
+  <a href="#-testing"><img src="https://img.shields.io/badge/pytest-156_passed-0A7A3E?style=for-the-badge&logo=pytest&logoColor=white" alt="Tests" /></a>
+</p>
+
+</div>
 
 **Stack:** FastAPI, SQLAlchemy, SQLite, Alembic, Next.js 14 (App Router), scikit-learn, JWT member auth, and revocable admin sessions.
 
@@ -410,6 +419,6 @@ Plan: when the mentor approves, merge #2 into `main` first, then retarget #3, #4
 
 ## 🙌 Credits
 
-Built by Kasaam Ali for the **Elevate Engine** Full-Stack AI/ML internship (HealthTech Profile Builder, weeks 1-4). Mentor review: [@AhmedHashir10](https://github.com/AhmedHashir10).
+Built by Kasaam Ali for the **Elevate Engine** AI/ML internship (HealthTech Profile Builder, weeks 1-4). Mentor review: [@AhmedHashir10](https://github.com/AhmedHashir10).
 
 Fictional clinic name used in Week 4 docs: Northwind Wellness Clinic. All names, addresses, and schedules in the repo are made up.
